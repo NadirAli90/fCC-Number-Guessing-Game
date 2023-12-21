@@ -17,6 +17,7 @@ elif [[ $NUM -lt $R_NUM ]]; then
 elif [[ $NUM -eq $R_NUM ]]; then
     ((COUNT++))
     echo "You guessed it in $COUNT tries. The secret number was $R_NUM. Nice job!"
+    INSERT_DATA=$($PSQL "INSERT INTO users(name, games_played, best_game) VALUES ('$NAME', $GAMES_PLAYED, $COUNT)")
 fi
 }
 
