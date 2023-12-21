@@ -1,40 +1,49 @@
 #!/bin/bash
+
+#~~~~~~~~~~~~~NUMBER GUESSING GAME~~~~~~~~~~~~~
+
 PSQL="psql --username=freecodecamp --dbname=number_guess -t --no-align -c"
-
-GUESS_FUNC () {
-if [[ $1 ]]; then
- echo "$1"
-fi
-read NUM
-if [[ ! $NUM =~ ^[0-9]+$ ]]; then
-    GUESS_FUNC "That is not an integer, guess again:"
-elif [[ $NUM -gt $R_NUM ]]; then
-    ((COUNT++))
-    GUESS_FUNC "It's lower than that, guess again:"
-elif [[ $NUM -lt $R_NUM ]]; then
-    ((COUNT++))
-    GUESS_FUNC "It's higher than that, guess again:"
-elif [[ $NUM -eq $R_NUM ]]; then
-    ((COUNT++))
-    echo "You guessed it in $COUNT tries. The secret number was $R_NUM. Nice job!"
-    INSERT_DATA=$($PSQL "INSERT INTO users(name, games_played, best_game) VALUES ('$NAME', $GAMES_PLAYED, $COUNT)")
-fi
-}
-
 echo "Enter your username:"
 read  NAME
-R_NUM=$((1 + RANDOM % 1000))
 
-DATA_QUERY=$($PSQL "SELECT * FROM users WHERE name = '$NAME'")
-IFS="|" read -r USER_ID USER_NAME GAMES_PLAYED BEST_GAME <<< $DATA_QUERY
+USER_ID=$($PSQL "SELECT user_id FROM users WHERE name = '$NAME'")
 
-if [[ -z $USER_ID ]]; then
-    echo "Welcome, $NAME! It looks like this is your first time here."
-else
+if [[ $USER_ID ]]; then
+    GAMES_PLAYED=$($PSQL "SELECT games_played FROM users WHERE user_id=$USER_ID")
+    BEST_GAME=$($PSQL "SELECT best_game FROM users WHERE user_id=$USER_ID")
     echo "Welcome back, $NAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
+else
+    echo "Welcome, $NAME! It looks like this is your first time here."
+    INSERT_USER=$($PSQL "INSERT INTO users(name) VALUES ('$NAME');")
+    USER_ID=$($PSQL "SELECT user_id FROM users WHERE name = '$NAME'")
 fi
 
-echo "Guess the secret number between 1 and 1000:"
-((GAMES_PLAYED++))
 COUNT=0
-GUESS_FUNC
+FOUND=0
+
+R_NUM=$((1 + $RANDOM % 1000))
+
+GAMES_PLAYED=$((GAMES_PLAYED + 1))
+echo "Guess the secret number between 1 and 1000:"
+
+while [[ $FOUND = 0 ]]; do
+read NUM
+if [[ ! $NUM =~ ^[0-9]+$ ]]; then
+    echo "That is not an integer, guess again:"
+elif [[ $NUM -eq $R_NUM ]]; then
+    COUNT=$((COUNT + 1))
+    echo "You guessed it in $COUNT tries. The secret number was $R_NUM. Nice job!"
+    if [[ $COUNT -le $BEST_GAME  || $BEST_GAME -eq 0 ]]; then
+        INSERT_DATA=$($PSQL "UPDATE users SET best_game = $COUNT, games_played = $GAMES_PLAYED where name = '$NAME'")
+    else 
+        INSERT_DATA=$($PSQL "UPDATE users SET games_played = $GAMES_PLAYED where name = '$NAME'")
+    fi
+    FOUND=1
+elif [[ $NUM -lt $R_NUM ]]; then
+    COUNT=$((COUNT + 1))
+    echo "It's higher than that, guess again:"
+else
+    COUNT=$((COUNT + 1))
+    echo "It's lower than that, guess again:"
+fi
+done
